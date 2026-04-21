@@ -1,4 +1,4 @@
-# SCIM Validator DB
+# SCIM Sandbox - Validator DB
 
 This repository is the standalone database migration bundle for the SCIM Sandbox validator database.
 

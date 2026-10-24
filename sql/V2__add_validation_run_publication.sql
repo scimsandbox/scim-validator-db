@@ -6,12 +6,14 @@ ALTER TABLE validation_run
 -- Stores metadata for compliance runs published to the public leaderboard via GitHub PR.
 -- Design notes:
 -- 1. created_by_email is denormalized from validation_run for direct quota/listing index lookups
---    and is locked to validation_run.created_by_email via fk_validation_run_publication_run_owner.
+--    and is locked to validation_run.created_by_email via the composite fk_validation_run_publication_run
+--    (which also transitively enforces fk_validation_run_created_by_user -> validator_mgmt_users).
 -- 2. ON DELETE RESTRICT on fk_validation_run_publication_run is intentional: published runs must
 --    never be auto-pruned or accidentally deleted while a publication record exists (admin deletion
 --    explicitly deletes the publication row before deleting the run).
--- 3. Multiple runs for the same (product_slug, product_version) are permitted (e.g. re-runs after
---    a closed PR) and indexed via idx_validation_run_publication_slug_version.
+-- 3. core_score is the rounded 0-100 Core RFC Conformance percentage (not a raw test count).
+-- 4. Multiple runs for the same (product_slug, product_version) are permitted (e.g. re-runs after
+--    a closed PR) and ordered by recency via idx_validation_run_publication_slug_version.
 CREATE TABLE validation_run_publication (
     run_id UUID PRIMARY KEY,
     created_by_email VARCHAR(500) NOT NULL,
@@ -34,16 +36,12 @@ CREATE TABLE validation_run_publication (
     CONSTRAINT chk_validation_run_publication_capabilities
         CHECK (supported_capabilities >= 0 AND total_capabilities > 0 AND supported_capabilities <= total_capabilities),
     CONSTRAINT fk_validation_run_publication_run
-        FOREIGN KEY (run_id) REFERENCES validation_run (id) ON DELETE RESTRICT,
-    CONSTRAINT fk_validation_run_publication_run_owner
-        FOREIGN KEY (run_id, created_by_email) REFERENCES validation_run (id, created_by_email) ON DELETE RESTRICT,
-    CONSTRAINT fk_validation_run_publication_user
-        FOREIGN KEY (created_by_email) REFERENCES validator_mgmt_users (email)
+        FOREIGN KEY (run_id, created_by_email) REFERENCES validation_run (id, created_by_email) ON DELETE RESTRICT
 );
 
 CREATE INDEX idx_validation_run_publication_email
     ON validation_run_publication (created_by_email, published_at DESC);
 
 CREATE INDEX idx_validation_run_publication_slug_version
-    ON validation_run_publication (product_slug, product_version);
+    ON validation_run_publication (product_slug, product_version, published_at DESC);
 

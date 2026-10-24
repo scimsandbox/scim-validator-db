@@ -6,19 +6,21 @@ This repository is the standalone database migration bundle for the SCIM Sandbox
 
 - `sql/` contains the Flyway migration scripts.
 - `sql/V1__init_validator_schema.sql` creates the initial validator schema.
+- `sql/V2__add_validation_run_publication.sql` adds publication tracking for compliance runs submitted to the public leaderboard.
 - `Dockerfile` packages those migrations into a Flyway image that runs `flyway migrate` against a target PostgreSQL database.
 - `CONTRIBUTING.md` and `SECURITY.md` describe the workflow and reporting process.
 
 ## Schema Overview
 
-The initial migration creates:
+The migrations create:
 
 - `validator_mgmt_users` for validator user records.
 - `validation_run` for run metadata and aggregate results.
 - `validation_test_result` for per-test outcomes.
 - `validation_http_exchange` for the HTTP request and response traces captured during a run.
+- `validation_run_publication` for published compliance scorecard metadata, GitHub PR links, and audit retention (`ON DELETE RESTRICT` on `validation_run` prevents published runs from being auto-pruned).
 
-The migration also adds indexes for run lookup and ordered trace access.
+The migrations also add indexes for run lookup, ordered trace access, user publication quotas, and product/version lookups.
 
 ## Working With Migrations
 

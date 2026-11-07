@@ -33,19 +33,26 @@ jobs:
             exit 1
           fi
 
+      - name: Generate GitHub App token
+        id: app-token
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
+        with:
+          app-id: ${{ secrets.RELEASE_APP_ID }}
+          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
+
       - name: Checkout repository
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           fetch-depth: 0
-          token: ${{ secrets.GH_TOKEN }}
+          token: ${{ steps.app-token.outputs.token }}
 
       - name: Configure Git
         shell: bash
         run: |
           set -euo pipefail
 
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git config user.name "scimsandbox-release-bot[bot]"
+          git config user.email "5655615+scimsandbox-release-bot[bot]@users.noreply.github.com"
 
       - name: Resolve release version
         id: version
@@ -125,20 +132,21 @@ jobs:
             SECURITY.md \
             sql
 
-      - name: Create and push git tag
+      - name: Push release commit and tag
         shell: bash
         env:
           TARGET_BRANCH: ${{ github.ref_name }}
         run: |
           set -euo pipefail
 
+          git push origin "HEAD:${TARGET_BRANCH}"
           git tag -a "${{ steps.version.outputs.tag_name }}" -m "Release ${{ steps.version.outputs.tag_name }}"
-          git push origin "HEAD:${TARGET_BRANCH}" --follow-tags
+          git push origin "refs/tags/${{ steps.version.outputs.tag_name }}"
 
       - name: Create GitHub release
         shell: bash
         env:
-          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
           set -euo pipefail
 

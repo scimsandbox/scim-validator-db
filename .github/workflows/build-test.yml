@@ -1,0 +1,81 @@
+name: Build and Test
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+  schedule:
+    - cron: "30 5 * * 1"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  build-and-test:
+    name: Build Flyway image and test PostgreSQL 17 migrations
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_DB: validator_db
+          POSTGRES_USER: validator_user
+          POSTGRES_PASSWORD: validator_password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U validator_user -d validator_db"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: Build scim-validator-db:ci image
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker build -t scim-validator-db:ci .
+
+      - name: Run Flyway migrations (V1 -> V2)
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker run --rm --network host \
+            -e FLYWAY_URL=jdbc:postgresql://localhost:5432/validator_db \
+            -e FLYWAY_USER=validator_user \
+            -e FLYWAY_PASSWORD=validator_password \
+            scim-validator-db:ci
+
+      - name: Verify Flyway idempotency (second run with zero pending migrations)
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker run --rm --network host \
+            -e FLYWAY_URL=jdbc:postgresql://localhost:5432/validator_db \
+            -e FLYWAY_USER=validator_user \
+            -e FLYWAY_PASSWORD=validator_password \
+            scim-validator-db:ci
+
+      - name: Run schema and constraint verification tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker run --rm --network host \
+            -e PGPASSWORD=validator_password \
+            -v "$GITHUB_WORKSPACE/scripts:/scripts:ro" \
+            postgres:17-alpine \
+            psql -h localhost -U validator_user -d validator_db -v ON_ERROR_STOP=1 -f /scripts/verify-schema.sql

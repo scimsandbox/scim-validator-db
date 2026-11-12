@@ -1,0 +1,51 @@
+# Git & repository metadata
+.git
+.github
+.gitignore
+.gitattributes
+.allowed_signers
+.editorconfig
+
+# Build, release, scripts & documentation
+dist
+scripts
+*.md
+LICENSE
+VERSION
+
+# Logs, temporary & scanner outputs
+.scannerwork
+.sonarcloud.properties
+*.log
+logs
+*.tmp
+temp
+.trivyignore
+trivy-*.sarif
+
+# macOS & Windows OS files
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+.Spotlight-V100
+.Trashes
+Thumbs.db
+Desktop.ini
+
+# IDEs & editors
+.idea
+.vscode
+*.iml
+*.iws
+*.ipr
+*.swp
+*~
+
+# Local SOPS / age secret artifacts
+*.agekey
+*.decrypted.yaml
+*.decrypted.yml
+*.dec.yaml
+*.dec.yml
+.config/sops

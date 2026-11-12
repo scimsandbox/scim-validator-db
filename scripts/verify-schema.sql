@@ -222,94 +222,38 @@ VALUES (
 );
 
 -- 3. Negative Constraint Tests
--- 3a. chk_validation_run_publication_core_score rejects core_score = -1
+-- 3a-3e. chk_validation_run_publication_core_score and chk_validation_run_publication_capabilities
 DO $$
+DECLARE
+    v_case RECORD;
 BEGIN
-    INSERT INTO validation_run_publication (
-        run_id, created_by_email, product_name, product_slug, product_version,
-        license_type, core_score, supported_capabilities, total_capabilities,
-        report_url, badge_url, published_at
-    )
-    VALUES (
-        '33333333-3333-3333-3333-333333333333', 'alice@example.com', 'Acme SCIM', 'acme-scim', '1.0.0',
-        'Apache-2.0', -1, 5, 10,
-        'https://scimsandbox.org/reports/3', 'https://scimsandbox.org/badges/3.svg', NOW()
-    );
-    RAISE EXCEPTION 'Expected check_violation for core_score = -1';
-EXCEPTION WHEN check_violation THEN
-    NULL;
-END $$;
-
--- 3b. chk_validation_run_publication_core_score rejects core_score = 101
-DO $$
-BEGIN
-    INSERT INTO validation_run_publication (
-        run_id, created_by_email, product_name, product_slug, product_version,
-        license_type, core_score, supported_capabilities, total_capabilities,
-        report_url, badge_url, published_at
-    )
-    VALUES (
-        '33333333-3333-3333-3333-333333333333', 'alice@example.com', 'Acme SCIM', 'acme-scim', '1.0.0',
-        'Apache-2.0', 101, 5, 10,
-        'https://scimsandbox.org/reports/3', 'https://scimsandbox.org/badges/3.svg', NOW()
-    );
-    RAISE EXCEPTION 'Expected check_violation for core_score = 101';
-EXCEPTION WHEN check_violation THEN
-    NULL;
-END $$;
-
--- 3c. chk_validation_run_publication_capabilities rejects total_capabilities = 0
-DO $$
-BEGIN
-    INSERT INTO validation_run_publication (
-        run_id, created_by_email, product_name, product_slug, product_version,
-        license_type, core_score, supported_capabilities, total_capabilities,
-        report_url, badge_url, published_at
-    )
-    VALUES (
-        '33333333-3333-3333-3333-333333333333', 'alice@example.com', 'Acme SCIM', 'acme-scim', '1.0.0',
-        'Apache-2.0', 80, 0, 0,
-        'https://scimsandbox.org/reports/3', 'https://scimsandbox.org/badges/3.svg', NOW()
-    );
-    RAISE EXCEPTION 'Expected check_violation for total_capabilities = 0';
-EXCEPTION WHEN check_violation THEN
-    NULL;
-END $$;
-
--- 3d. chk_validation_run_publication_capabilities rejects supported_capabilities = -1
-DO $$
-BEGIN
-    INSERT INTO validation_run_publication (
-        run_id, created_by_email, product_name, product_slug, product_version,
-        license_type, core_score, supported_capabilities, total_capabilities,
-        report_url, badge_url, published_at
-    )
-    VALUES (
-        '33333333-3333-3333-3333-333333333333', 'alice@example.com', 'Acme SCIM', 'acme-scim', '1.0.0',
-        'Apache-2.0', 80, -1, 10,
-        'https://scimsandbox.org/reports/3', 'https://scimsandbox.org/badges/3.svg', NOW()
-    );
-    RAISE EXCEPTION 'Expected check_violation for supported_capabilities = -1';
-EXCEPTION WHEN check_violation THEN
-    NULL;
-END $$;
-
--- 3e. chk_validation_run_publication_capabilities rejects supported_capabilities > total_capabilities
-DO $$
-BEGIN
-    INSERT INTO validation_run_publication (
-        run_id, created_by_email, product_name, product_slug, product_version,
-        license_type, core_score, supported_capabilities, total_capabilities,
-        report_url, badge_url, published_at
-    )
-    VALUES (
-        '33333333-3333-3333-3333-333333333333', 'alice@example.com', 'Acme SCIM', 'acme-scim', '1.0.0',
-        'Apache-2.0', 80, 11, 10,
-        'https://scimsandbox.org/reports/3', 'https://scimsandbox.org/badges/3.svg', NOW()
-    );
-    RAISE EXCEPTION 'Expected check_violation for supported_capabilities > total_capabilities';
-EXCEPTION WHEN check_violation THEN
-    NULL;
+    FOR v_case IN
+        SELECT *
+        FROM (
+            VALUES
+                ('core_score = -1', -1, 5, 10),
+                ('core_score = 101', 101, 5, 10),
+                ('total_capabilities = 0', 80, 0, 0),
+                ('supported_capabilities = -1', 80, -1, 10),
+                ('supported_capabilities > total_capabilities', 80, 11, 10)
+        ) AS t(label, score, supported, total)
+    LOOP
+        BEGIN
+            INSERT INTO validation_run_publication (
+                run_id, created_by_email, product_name, product_slug, product_version,
+                license_type, core_score, supported_capabilities, total_capabilities,
+                report_url, badge_url, published_at
+            )
+            VALUES (
+                '33333333-3333-3333-3333-333333333333', 'alice@example.com', 'Acme SCIM', 'acme-scim', '1.0.0',
+                'Apache-2.0', v_case.score, v_case.supported, v_case.total,
+                'https://scimsandbox.org/reports/3', 'https://scimsandbox.org/badges/3.svg', NOW()
+            );
+            RAISE EXCEPTION 'Expected check_violation for %', v_case.label;
+        EXCEPTION WHEN check_violation THEN
+            NULL;
+        END;
+    END LOOP;
 END $$;
 
 -- 3f. fk_validation_run_publication_run rejects mismatched created_by_email

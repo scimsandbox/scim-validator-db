@@ -15,6 +15,7 @@ VERSION
 
 # Logs, temporary & scanner outputs
 .scannerwork
+.sonarcloud.properties
 *.log
 logs
 *.tmp

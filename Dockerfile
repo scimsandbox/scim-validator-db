@@ -1,4 +1,4 @@
-FROM dhi.io/flyway:12-jre23
+FROM dhi.io/flyway:12-debian13
 
 COPY sql/ /flyway/sql/
 

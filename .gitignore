@@ -18,3 +18,7 @@ Desktop.ini
 *.tmp
 temp/
 /tmp/
+
+# Release & security scan outputs
+dist/
+trivy-*.sarif

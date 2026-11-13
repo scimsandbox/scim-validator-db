@@ -1,8 +1,18 @@
 version: 2
 
+registries:
+  dhi-registry:
+    type: docker-registry
+    url: https://dhi.io
+    username: edipal
+    # Requires DOCKERHUB_TOKEN to be configured in GitHub Dependabot Secrets.
+    password: ${{ secrets.DOCKERHUB_TOKEN }}
+
 updates:
   - package-ecosystem: "docker"
     directory: "/"
+    registries:
+      - dhi-registry
     schedule:
       interval: "weekly"
       day: "monday"
@@ -11,6 +21,8 @@ updates:
     open-pull-requests-limit: 5
     cooldown:
       default-days: 3
+    # Keep major dhi.io/flyway updates ungrouped (not ignored) so major Flyway
+    # releases surface as separate manual-review PRs while auto-merge skips semver-major.
     groups:
       docker-images:
         patterns:

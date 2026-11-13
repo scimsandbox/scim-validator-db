@@ -50,7 +50,7 @@ jobs:
           set -euo pipefail
           docker build -t scim-validator-db:ci .
 
-      - name: Run Flyway migrations (V1 -> V2)
+      - name: Run Flyway migrations (V1 -> V3)
         shell: bash
         run: |
           set -euo pipefail

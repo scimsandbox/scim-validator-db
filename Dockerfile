@@ -1,7 +1,7 @@
-FROM dhi.io/flyway:12-debian13
+FROM dhi.io/flyway:12-debian13@sha256:ea35d91f704faf7812ecad6b7a48b6956037bf82b3a131a811a5443e2ef3e9d3
 
-COPY sql/ /flyway/sql/
+COPY --chmod=0555 sql/ /flyway/sql/
 
-USER nonroot
+USER 65532:65532
 
-ENTRYPOINT ["/bin/sh", "-c", "exec flyway migrate -url=\"$FLYWAY_URL\" -user=\"$FLYWAY_USER\" -password=\"$FLYWAY_PASSWORD\" -locations=filesystem:/flyway/sql -connectRetries=5"]
+ENTRYPOINT ["flyway", "migrate", "-locations=filesystem:/flyway/sql", "-connectRetries=5"]

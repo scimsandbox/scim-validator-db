@@ -98,9 +98,18 @@ BEGIN
             RAISE EXCEPTION 'Expected % constraint %.% is missing', chk.con_type, chk.tbl_name, chk.con_name;
         END IF;
     END LOOP;
+
+    IF EXISTS (
+        SELECT 1
+        FROM pg_proc p
+        JOIN pg_namespace n ON n.oid = p.pronamespace
+        WHERE n.nspname = 'public'
+    ) THEN
+        RAISE EXCEPTION 'Unexpected function(s) left in public schema after migration';
+    END IF;
 END $$;
 
--- 2. Positive Inserts across all 5 tables (including http://localhost dev/test URL, 1 MiB stacktrace, and PENDING_RESERVATION)
+-- 2. Positive Inserts across all 5 tables (including http://localhost dev/test URL, mixed-case HTTPS:// schemes, 1 MiB stacktrace, and PENDING_RESERVATION)
 INSERT INTO validator_mgmt_users (email, last_login_at)
 VALUES
     ('alice@example.com', NOW()),
@@ -110,8 +119,8 @@ INSERT INTO validation_run (
     id, name, target_url, executed_at, status, created_by_email, total_tests, passed_tests, failed_tests
 )
 VALUES
-    ('11111111-1111-1111-1111-111111111111', 'CI Run 1', 'https://scim.example.com/v2', NOW() - INTERVAL '10 minutes', 'PASSED', 'alice@example.com', 42, 42, 0),
-    ('22222222-2222-2222-2222-222222222222', 'CI Run 2', 'http://localhost:8080/ws/test/scim/v2', NOW() - INTERVAL '5 minutes', 'PASSED', 'alice@example.com', 42, 41, 1),
+    ('11111111-1111-1111-1111-111111111111', 'CI Run 1', 'HTTPS://scim.example.com/v2', NOW() - INTERVAL '10 minutes', 'PASSED', 'alice@example.com', 42, 42, 0),
+    ('22222222-2222-2222-2222-222222222222', 'CI Run 2', 'Http://localhost:8080/ws/test/scim/v2', NOW() - INTERVAL '5 minutes', 'PASSED', 'alice@example.com', 42, 41, 1),
     ('33333333-3333-3333-3333-333333333333', 'CI Run 3 (Unpublished)', 'https://scim.example.com/v2', NOW(), 'PASSED', 'alice@example.com', 42, 40, 2);
 
 INSERT INTO validation_test_result (
@@ -203,14 +212,14 @@ VALUES (
     'acme-scim',
     '1.0.0',
     'Acme Corp',
-    'https://github.com/acme/scim-server',
+    'HTTPS://github.com/acme/scim-server',
     'Apache-2.0',
     100,
     8,
     10,
-    'https://scimsandbox.org/reports/11111111',
-    'https://scimsandbox.org/badges/11111111.svg',
-    'https://github.com/scimsandbox/leaderboard/pull/1',
+    'HTTPS://scimsandbox.org/reports/11111111',
+    'Http://scimsandbox.org/badges/11111111.svg',
+    'HTTPS://github.com/scimsandbox/leaderboard/pull/1',
     NOW() - INTERVAL '4 minutes'
 );
 
@@ -359,6 +368,9 @@ BEGIN
             VALUES
                 ('javascript target_url', 'javascript:alert(1)', 10, 10, 0),
                 ('userinfo target_url', 'https://admin:secret@scim.example.com/v2', 10, 10, 0),
+                ('uppercase scheme userinfo target_url', 'HTTPS://admin:secret@scim.example.com/v2', 10, 10, 0),
+                ('empty host target_url', 'https:///v2', 10, 10, 0),
+                ('whitespace in target_url', 'https://scim.example.com/my tenant/v2', 10, 10, 0),
                 ('passed + failed > total', 'https://scim.example.com/v2', 10, 6, 5),
                 ('negative passed_tests', 'https://scim.example.com/v2', 10, -1, 0)
         ) AS t(label, target_url, total_t, passed_t, failed_t)
@@ -392,9 +404,14 @@ BEGIN
                 ('double hyphen slug', 'acme--scim', 'https://example.com', 'https://scimsandbox.org/r/3', 'https://scimsandbox.org/b/3.svg', 'https://github.com/pr/3'),
                 ('UUID slug', '11111111-1111-1111-1111-111111111111', 'https://example.com', 'https://scimsandbox.org/r/3', 'https://scimsandbox.org/b/3.svg', 'https://github.com/pr/3'),
                 ('javascript project_url', 'acme-scim', 'javascript:alert(1)', 'https://scimsandbox.org/r/3', 'https://scimsandbox.org/b/3.svg', 'https://github.com/pr/3'),
+                ('userinfo project_url', 'acme-scim', 'HTTPS://user:pass@example.com', 'https://scimsandbox.org/r/3', 'https://scimsandbox.org/b/3.svg', 'https://github.com/pr/3'),
+                ('empty host project_url', 'acme-scim', 'https:///repo', 'https://scimsandbox.org/r/3', 'https://scimsandbox.org/b/3.svg', 'https://github.com/pr/3'),
                 ('data report_url', 'acme-scim', 'https://example.com', 'data:text/html,hi', 'https://scimsandbox.org/b/3.svg', 'https://github.com/pr/3'),
+                ('userinfo report_url', 'acme-scim', 'https://example.com', 'HTTPS://user:pass@scimsandbox.org/r/3', 'https://scimsandbox.org/b/3.svg', 'https://github.com/pr/3'),
                 ('ftp badge_url', 'acme-scim', 'https://example.com', 'https://scimsandbox.org/r/3', 'ftp://scimsandbox.org/b/3.svg', 'https://github.com/pr/3'),
-                ('invalid pr_url', 'acme-scim', 'https://example.com', 'https://scimsandbox.org/r/3', 'https://scimsandbox.org/b/3.svg', 'javascript:alert(1)')
+                ('userinfo badge_url', 'acme-scim', 'https://example.com', 'https://scimsandbox.org/r/3', 'https://user:pass@scimsandbox.org/b/3.svg', 'https://github.com/pr/3'),
+                ('invalid pr_url', 'acme-scim', 'https://example.com', 'https://scimsandbox.org/r/3', 'https://scimsandbox.org/b/3.svg', 'javascript:alert(1)'),
+                ('userinfo pr_url', 'acme-scim', 'https://example.com', 'https://scimsandbox.org/r/3', 'https://scimsandbox.org/b/3.svg', 'HTTPS://token@github.com/pr/3')
         ) AS t(label, slug, proj_url, rep_url, bdg_url, pull_url)
     LOOP
         BEGIN

@@ -140,7 +140,7 @@ jobs:
           push: false
           tags: scim-validator-db:pre-release-scan
 
-      - name: Run Flyway migrations (V1 -> V2)
+      - name: Run Flyway migrations (V1 -> V3)
         shell: bash
         run: |
           set -euo pipefail
@@ -170,6 +170,43 @@ jobs:
             postgres:17-alpine \
             psql -h localhost -U validator_user -d validator_db -v ON_ERROR_STOP=1 -f /scripts/verify-schema.sql
 
+      - name: Test V2 -> V3 upgrade migration against dirty legacy data
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker run --rm --network host \
+            -e PGPASSWORD=validator_password \
+            postgres:17-alpine \
+            psql -h localhost -U validator_user -d validator_db -v ON_ERROR_STOP=1 \
+              -c "CREATE DATABASE validator_upgrade_db OWNER validator_user;"
+
+          docker run --rm --network host \
+            -e FLYWAY_URL=jdbc:postgresql://localhost:5432/validator_upgrade_db \
+            -e FLYWAY_USER=validator_user \
+            -e FLYWAY_PASSWORD=validator_password \
+            scim-validator-db:pre-release-scan -target=2
+
+          docker run --rm --network host \
+            -e PGPASSWORD=validator_password \
+            -v "$GITHUB_WORKSPACE/scripts:/scripts:ro" \
+            postgres:17-alpine \
+            psql -h localhost -U validator_user -d validator_upgrade_db -v ON_ERROR_STOP=1 \
+              -f /scripts/seed-v2-dirty-data.sql
+
+          docker run --rm --network host \
+            -e FLYWAY_URL=jdbc:postgresql://localhost:5432/validator_upgrade_db \
+            -e FLYWAY_USER=validator_user \
+            -e FLYWAY_PASSWORD=validator_password \
+            scim-validator-db:pre-release-scan
+
+          docker run --rm --network host \
+            -e PGPASSWORD=validator_password \
+            -v "$GITHUB_WORKSPACE/scripts:/scripts:ro" \
+            postgres:17-alpine \
+            psql -h localhost -U validator_user -d validator_upgrade_db -v ON_ERROR_STOP=1 \
+              -f /scripts/verify-v3-upgrade-cleanup.sql \
+              -f /scripts/verify-schema.sql
+
       - name: Enforce pre-release Trivy vulnerability gate
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
@@ -179,6 +216,7 @@ jobs:
           ignore-unfixed: true
           vuln-type: os,library
           severity: CRITICAL,HIGH
+          trivyignores: ".trivyignore"
 
       - name: Enforce pre-release Trivy config gate
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
@@ -188,6 +226,7 @@ jobs:
           format: table
           exit-code: "1"
           severity: CRITICAL,HIGH
+          trivyignores: ".trivyignore"
           skip-setup-trivy: true
 
       - name: Commit version bump

@@ -1,0 +1,5 @@
+# scim-validator-db is a one-shot Flyway migration job (executed as a Kubernetes
+# initContainer or Compose run-to-completion service), not a long-lived daemon.
+# Adding a Dockerfile HEALTHCHECK to an ephemeral batch CLI image is non-applicable.
+DS-0026
+AVD-DS-0026

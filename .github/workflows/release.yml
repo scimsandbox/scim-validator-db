@@ -184,7 +184,8 @@ jobs:
             -e FLYWAY_URL=jdbc:postgresql://localhost:5432/validator_upgrade_db \
             -e FLYWAY_USER=validator_user \
             -e FLYWAY_PASSWORD=validator_password \
-            scim-validator-db:pre-release-scan -target=2
+            -e FLYWAY_TARGET=2 \
+            scim-validator-db:pre-release-scan
 
           docker run --rm --network host \
             -e PGPASSWORD=validator_password \

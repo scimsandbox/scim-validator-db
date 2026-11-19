@@ -26,22 +26,22 @@ BEGIN
         RAISE EXCEPTION 'Unexpected function(s) found in public schema after V3 upgrade';
     END IF;
 
-    -- 2. Verify all 4 live publications survived (ZERO publications deleted)
+    -- 2. Verify all 5 live publications survived (ZERO publications deleted)
     SELECT COUNT(*) INTO v_pub_count
     FROM validation_run_publication
     WHERE created_by_email = 'upgrade-user@example.com';
 
-    IF v_pub_count <> 4 THEN
-        RAISE EXCEPTION 'Expected all 4 validation_run_publication rows to survive V3 upgrade, found %', v_pub_count;
+    IF v_pub_count <> 5 THEN
+        RAISE EXCEPTION 'Expected all 5 validation_run_publication rows to survive V3 upgrade, found %', v_pub_count;
     END IF;
 
-    -- 3. Verify Runs 1..6 survived and unpublished invalid Runs 7..8 were deleted
+    -- 3. Verify Runs 1..6, 9, 10 survived and unpublished invalid Runs 7..8 were deleted
     SELECT COUNT(*) INTO v_run_count
     FROM validation_run
     WHERE created_by_email = 'upgrade-user@example.com';
 
-    IF v_run_count <> 6 THEN
-        RAISE EXCEPTION 'Expected 6 validation_run rows to survive V3 upgrade (Runs 1..6), found %', v_run_count;
+    IF v_run_count <> 8 THEN
+        RAISE EXCEPTION 'Expected 8 validation_run rows to survive V3 upgrade (Runs 1..6, 9, 10), found %', v_run_count;
     END IF;
 
     IF EXISTS (
@@ -62,9 +62,9 @@ BEGIN
         RAISE EXCEPTION 'Child rows of deleted unpublished Run 7 should have been cascade-deleted';
     END IF;
 
-    -- 4. Verify validation_run target_url and test-count normalizations
+    -- 4. Verify validation_run target_url scheme lowercasing (preserving host/path/query casing) and test-count normalizations
     SELECT * INTO v_run FROM validation_run WHERE id = 'd0000000-0000-0000-0000-000000000001';
-    IF v_run.target_url <> 'HTTPS://scim.example.com/v2' THEN
+    IF v_run.target_url <> 'https://Scim.Example.com/Users?filter=userName' THEN
         RAISE EXCEPTION 'Run 1 target_url mismatch: %', v_run.target_url;
     END IF;
 
@@ -76,7 +76,7 @@ BEGIN
     END IF;
 
     SELECT * INTO v_run FROM validation_run WHERE id = 'd0000000-0000-0000-0000-000000000003';
-    IF v_run.target_url <> 'HTTPS://scim.example.com/v2'
+    IF v_run.target_url <> 'https://Scim.Example.com/v2/Users'
        OR v_run.total_tests <> 7 OR v_run.passed_tests <> 4 OR v_run.failed_tests <> 3 THEN
         RAISE EXCEPTION 'Run 3 normalization mismatch: url=%, counts=(%,%,%)',
             v_run.target_url, v_run.total_tests, v_run.passed_tests, v_run.failed_tests;
@@ -97,21 +97,32 @@ BEGIN
         RAISE EXCEPTION 'Run 6 published empty-host target_url fallback mismatch: %', v_run.target_url;
     END IF;
 
-    -- 5. Verify validation_run_publication in-place normalizations
+    SELECT * INTO v_run FROM validation_run WHERE id = 'd0000000-0000-0000-0000-000000000009';
+    IF v_run.target_url <> 'http://Keycloak.Example.com:8080/realms/Master/scim/v2' THEN
+        RAISE EXCEPTION 'Run 9 mixed-case Http:// scheme normalization mismatch: %', v_run.target_url;
+    END IF;
+
+    SELECT * INTO v_run FROM validation_run WHERE id = 'd0000000-0000-0000-0000-000000000010';
+    IF v_run.target_url <> 'https://clean.example.com/scim/v2'
+       OR v_run.total_tests <> 12 OR v_run.passed_tests <> 11 OR v_run.failed_tests <> 1 THEN
+        RAISE EXCEPTION 'Run 10 clean control row mismatch: %', v_run;
+    END IF;
+
+    -- 5. Verify validation_run_publication in-place normalizations (scheme lowercased, underscore slug normalized)
     SELECT * INTO v_pub FROM validation_run_publication WHERE run_id = 'd0000000-0000-0000-0000-000000000003';
     IF v_pub.product_slug <> 'my-cool-scim'
-       OR v_pub.project_url <> 'HTTPS://github.com/acme/scim'
+       OR v_pub.project_url <> 'https://github.com/acme/scim'
        OR v_pub.report_url <> 'https://scimsandbox.org/compliance/?run=d0000000-0000-0000-0000-000000000003'
        OR v_pub.badge_url <> 'https://scimsandbox.org/compliance/badges/d0000000-0000-0000-0000-000000000003.svg'
-       OR v_pub.pr_url <> 'HTTPS://github.com/scimsandbox/scim-website/pull/42' THEN
+       OR v_pub.pr_url <> 'https://github.com/scimsandbox/scim-website/pull/42' THEN
         RAISE EXCEPTION 'Pub 3 normalization mismatch: %', v_pub;
     END IF;
 
     SELECT * INTO v_pub FROM validation_run_publication WHERE run_id = 'd0000000-0000-0000-0000-000000000004';
     IF v_pub.product_slug <> 'product-33333333-3333-3333-3333-333333333333'
        OR v_pub.project_url IS NOT NULL
-       OR v_pub.report_url <> 'HTTPS://scimsandbox.org/compliance/?run=4'
-       OR v_pub.badge_url <> 'Http://scimsandbox.org/compliance/badges/4.svg'
+       OR v_pub.report_url <> 'https://scimsandbox.org/compliance/?run=4'
+       OR v_pub.badge_url <> 'http://scimsandbox.org/compliance/badges/4.svg'
        OR v_pub.pr_url <> 'PENDING_RESERVATION' THEN
         RAISE EXCEPTION 'Pub 4 normalization mismatch: %', v_pub;
     END IF;
@@ -127,11 +138,20 @@ BEGIN
 
     SELECT * INTO v_pub FROM validation_run_publication WHERE run_id = 'd0000000-0000-0000-0000-000000000006';
     IF v_pub.product_slug <> 'legacy-product'
-       OR v_pub.project_url <> 'HTTPS://github.com/acme/repo'
+       OR v_pub.project_url <> 'https://github.com/acme/repo'
        OR v_pub.report_url <> 'https://scimsandbox.org/r/6'
        OR v_pub.badge_url <> 'https://scimsandbox.org/b/6.svg'
-       OR v_pub.pr_url <> 'HTTPS://github.com/scimsandbox/scim-website/pull/6' THEN
+       OR v_pub.pr_url <> 'https://github.com/scimsandbox/scim-website/pull/6' THEN
         RAISE EXCEPTION 'Pub 6 normalization mismatch: %', v_pub;
+    END IF;
+
+    SELECT * INTO v_pub FROM validation_run_publication WHERE run_id = 'd0000000-0000-0000-0000-000000000009';
+    IF v_pub.product_slug <> 'keycloak-scim-plugin'
+       OR v_pub.project_url <> 'https://GitHub.com/Keycloak/SCIM_Plugin'
+       OR v_pub.report_url <> 'https://scimsandbox.org/Compliance/?run=9'
+       OR v_pub.badge_url <> 'http://scimsandbox.org/Compliance/Badges/9.svg'
+       OR v_pub.pr_url <> 'PENDING_RESERVATION' THEN
+        RAISE EXCEPTION 'Pub 9 underscore slug / mixed-case URL normalization mismatch: %', v_pub;
     END IF;
 
     -- 6. Verify cross-run HTTP exchange removal and negative sequence_number normalization

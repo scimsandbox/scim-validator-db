@@ -226,13 +226,25 @@ VALUES (
 DO $$
 DECLARE
     v_show_submitter BOOLEAN;
+    v_target_url TEXT;
+    v_project_url TEXT;
 BEGIN
-    SELECT show_submitter INTO v_show_submitter
+    SELECT show_submitter, project_url INTO v_show_submitter, v_project_url
     FROM validation_run_publication
     WHERE run_id = '11111111-1111-1111-1111-111111111111';
 
     IF v_show_submitter IS DISTINCT FROM FALSE THEN
         RAISE EXCEPTION 'Expected show_submitter default to be FALSE, got %', v_show_submitter;
+    END IF;
+
+    SELECT target_url INTO v_target_url
+    FROM validation_run
+    WHERE id = '11111111-1111-1111-1111-111111111111';
+
+    IF v_target_url <> 'HTTPS://scim.example.com/v2'
+       OR v_project_url <> 'HTTPS://github.com/acme/scim-server' THEN
+        RAISE EXCEPTION 'Expected post-V3 mixed-case scheme INSERTs to succeed under ~* CHECKs, got target_url=%, project_url=%',
+            v_target_url, v_project_url;
     END IF;
 END $$;
 
@@ -401,6 +413,7 @@ BEGIN
             VALUES
                 ('path traversal slug', '../traversal', 'https://example.com', 'https://scimsandbox.org/r/3', 'https://scimsandbox.org/b/3.svg', 'https://github.com/pr/3'),
                 ('uppercase slug', 'Acme-SCIM', 'https://example.com', 'https://scimsandbox.org/r/3', 'https://scimsandbox.org/b/3.svg', 'https://github.com/pr/3'),
+                ('underscore slug', 'keycloak_scim', 'https://example.com', 'https://scimsandbox.org/r/3', 'https://scimsandbox.org/b/3.svg', 'https://github.com/pr/3'),
                 ('double hyphen slug', 'acme--scim', 'https://example.com', 'https://scimsandbox.org/r/3', 'https://scimsandbox.org/b/3.svg', 'https://github.com/pr/3'),
                 ('UUID slug', '11111111-1111-1111-1111-111111111111', 'https://example.com', 'https://scimsandbox.org/r/3', 'https://scimsandbox.org/b/3.svg', 'https://github.com/pr/3'),
                 ('javascript project_url', 'acme-scim', 'javascript:alert(1)', 'https://scimsandbox.org/r/3', 'https://scimsandbox.org/b/3.svg', 'https://github.com/pr/3'),

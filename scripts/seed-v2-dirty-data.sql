@@ -9,17 +9,17 @@ BEGIN;
 INSERT INTO validator_mgmt_users (email, last_login_at)
 VALUES ('upgrade-user@example.com', NOW() - INTERVAL '1 day');
 
--- Runs 1..8 covering mixed-case URLs, userinfo, published malformed targets, unpublished invalid targets, and bad test counts
+-- Runs 1..10 covering mixed-case URLs, userinfo, published malformed targets, unpublished invalid targets, bad test counts, and clean control
 INSERT INTO validation_run (
     id, name, target_url, executed_at, status, created_by_email, total_tests, passed_tests, failed_tests
 )
 VALUES
-    -- Run 1: Unpublished, mixed-case HTTPS scheme with leading/trailing whitespace (must survive, trimmed)
-    ('d0000000-0000-0000-0000-000000000001', 'Dirty Run 1 (Mixed Case)', '  HTTPS://scim.example.com/v2  ', NOW() - INTERVAL '80 minutes', 'PASSED', 'upgrade-user@example.com', 10, 10, 0),
+    -- Run 1: Unpublished, mixed-case HTTPS scheme + mixed-case host/path/query + whitespace (scheme lowercased, host/path casing preserved)
+    ('d0000000-0000-0000-0000-000000000001', 'Dirty Run 1 (Mixed Case)', '  HTTPS://Scim.Example.com/Users?filter=userName  ', NOW() - INTERVAL '80 minutes', 'PASSED', 'upgrade-user@example.com', 10, 10, 0),
     -- Run 2: Unpublished, embedded userinfo + negative test counts (must survive, userinfo stripped & counts normalized)
     ('d0000000-0000-0000-0000-000000000002', 'Dirty Run 2 (Userinfo + Counts)', 'https://user:secret@scim.example.com/v2', NOW() - INTERVAL '70 minutes', 'PASSED', 'upgrade-user@example.com', -5, 8, -2),
-    -- Run 3: Published, uppercase HTTPS + userinfo + inconsistent test counts (must survive, stripped & normalized)
-    ('d0000000-0000-0000-0000-000000000003', 'Dirty Run 3 (Published Userinfo)', '  HTTPS://admin:pw@scim.example.com/v2  ', NOW() - INTERVAL '60 minutes', 'FAILED', 'upgrade-user@example.com', 5, 4, 3),
+    -- Run 3: Published, uppercase HTTPS + userinfo + mixed-case host/path + inconsistent test counts (survives, scheme lowercased & stripped)
+    ('d0000000-0000-0000-0000-000000000003', 'Dirty Run 3 (Published Userinfo)', '  HTTPS://admin:pw@Scim.Example.com/v2/Users  ', NOW() - INTERVAL '60 minutes', 'FAILED', 'upgrade-user@example.com', 5, 4, 3),
     -- Run 4: Published, schemeless target_url with port and internal whitespace (must survive, normalized in place)
     ('d0000000-0000-0000-0000-000000000004', 'Dirty Run 4 (Published Schemeless)', '  scim.legacy.example.com:8443 / scim/v2  ', NOW() - INTERVAL '50 minutes', 'PASSED', 'upgrade-user@example.com', 20, 20, 0),
     -- Run 5: Published, non-HTTP scheme target_url (must survive, normalized to safe .invalid fallback)
@@ -29,7 +29,11 @@ VALUES
     -- Run 7: Unpublished, unsalvageable ftp:// scheme (must be deleted along with child rows)
     ('d0000000-0000-0000-0000-000000000007', 'Dirty Run 7 (Unpublished FTP)', 'ftp://files.example.com/scim', NOW() - INTERVAL '20 minutes', 'FAILED', 'upgrade-user@example.com', 10, 0, 10),
     -- Run 8: Unpublished, empty host after userinfo strip (must be deleted)
-    ('d0000000-0000-0000-0000-000000000008', 'Dirty Run 8 (Unpublished Empty Host)', 'https://user:pw@', NOW() - INTERVAL '10 minutes', 'FAILED', 'upgrade-user@example.com', 10, 0, 10);
+    ('d0000000-0000-0000-0000-000000000008', 'Dirty Run 8 (Unpublished Empty Host)', 'https://user:pw@', NOW() - INTERVAL '10 minutes', 'FAILED', 'upgrade-user@example.com', 10, 0, 10),
+    -- Run 9: Published, mixed-case Http:// scheme + mixed-case host/path (scheme lowercased, host/path casing preserved)
+    ('d0000000-0000-0000-0000-000000000009', 'Dirty Run 9 (Published Underscore Slug)', 'Http://Keycloak.Example.com:8080/realms/Master/scim/v2', NOW() - INTERVAL '5 minutes', 'PASSED', 'upgrade-user@example.com', 30, 30, 0),
+    -- Run 10: Unpublished, already-clean lowercase https:// URL and valid counts (control row untouched by UPDATE)
+    ('d0000000-0000-0000-0000-000000000010', 'Clean Run 10 (Control)', 'https://clean.example.com/scim/v2', NOW() - INTERVAL '2 minutes', 'PASSED', 'upgrade-user@example.com', 12, 11, 1);
 
 -- Test results: oversized > 2 MiB ASCII & multi-byte UTF-8, normal control row, Run 2 row for cross-run test, and Run 7 child row
 INSERT INTO validation_test_result (
@@ -154,7 +158,7 @@ VALUES
         NOW() - INTERVAL '18 minutes'
     );
 
--- Live publications on Runs 3, 4, 5, 6 (ALL 4 MUST SURVIVE V3 WITHOUT DELETION)
+-- Live publications on Runs 3, 4, 5, 6, 9 (ALL 5 MUST SURVIVE V3 WITHOUT DELETION)
 INSERT INTO validation_run_publication (
     run_id, created_by_email, product_name, product_slug, product_version, vendor_name,
     project_url, license_type, show_submitter, core_score, supported_capabilities, total_capabilities,
@@ -236,6 +240,25 @@ VALUES
         'https://scimsandbox.org/b/6.svg',
         'HTTPS://github.com/scimsandbox/scim-website/pull/6',
         NOW() - INTERVAL '29 minutes'
+    ),
+    -- Pub 9: Underscore + uppercase product_slug ('Keycloak_SCIM_Plugin') and mixed-case scheme/host/path URLs
+    (
+        'd0000000-0000-0000-0000-000000000009',
+        'upgrade-user@example.com',
+        'Keycloak SCIM Plugin',
+        'Keycloak_SCIM_Plugin',
+        '1.4.0',
+        'Keycloak Community',
+        'HTTPS://GitHub.com/Keycloak/SCIM_Plugin',
+        'Apache-2.0',
+        TRUE,
+        99,
+        10,
+        10,
+        'HTTPS://scimsandbox.org/Compliance/?run=9',
+        'Http://scimsandbox.org/Compliance/Badges/9.svg',
+        '  PENDING_RESERVATION  ',
+        NOW() - INTERVAL '4 minutes'
     );
 
 COMMIT;

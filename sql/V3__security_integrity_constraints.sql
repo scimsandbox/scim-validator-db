@@ -54,6 +54,7 @@ IMMUTABLE
 AS $$
 DECLARE
     cleaned TEXT;
+    sep_pos INTEGER;
 BEGIN
     IF raw_url IS NULL THEN
         RETURN NULL;
@@ -65,8 +66,13 @@ BEGIN
     END IF;
 
     cleaned := regexp_replace(cleaned, '^(https?://)[^/?#]*@', '\1', 'i');
+    IF cleaned ~* '^https?://' THEN
+        sep_pos := strpos(cleaned, '://');
+        cleaned := lower(left(cleaned, sep_pos - 1)) || substr(cleaned, sep_pos);
+    END IF;
+
     IF char_length(cleaned) <= 500
-       AND cleaned ~* '^https?://[^/?#\s]\S*$'
+       AND cleaned ~ '^https?://[^/?#\s]\S*$'
        AND cleaned !~* '^https?://[^/?#]*@' THEN
         RETURN cleaned;
     END IF;
@@ -150,124 +156,154 @@ BEGIN
 END;
 $$;
 
--- 2. Pre-constraint cleanup / normalization for existing databases so V3 applies cleanly.
+-- 2. Pre-constraint cleanup / normalization for existing databases so V3 applies cleanly
+--    (at most one UPDATE pass per table, emitting RAISE NOTICE audit counts when rows change).
 
--- Remove any orphaned or cross-run HTTP exchanges whose (test_result_id, run_id) pair does not match.
-DELETE FROM validation_http_exchange e
-WHERE NOT EXISTS (
-    SELECT 1
-    FROM validation_test_result tr
-    WHERE tr.id = e.test_result_id
-      AND tr.run_id = e.run_id
-);
-
-UPDATE validation_http_exchange
-SET sequence_number = 0
-WHERE sequence_number < 0;
-
--- Bound any oversized legacy TEXT columns to <= 2 MiB (2,097,152 UTF-8 bytes) with '...[truncated]' marker.
-UPDATE validation_test_result
-SET error_message = CASE
-        WHEN error_message IS NOT NULL AND octet_length(error_message) > 2097152
-        THEN pg_temp.truncate_utf8_bytes(error_message)
-        ELSE error_message
-    END,
-    stack_trace = CASE
-        WHEN stack_trace IS NOT NULL AND octet_length(stack_trace) > 2097152
-        THEN pg_temp.truncate_utf8_bytes(stack_trace)
-        ELSE stack_trace
-    END
-WHERE (error_message IS NOT NULL AND octet_length(error_message) > 2097152)
-   OR (stack_trace IS NOT NULL AND octet_length(stack_trace) > 2097152);
-
-UPDATE validation_http_exchange
-SET request_headers = CASE
-        WHEN request_headers IS NOT NULL AND octet_length(request_headers) > 2097152
-        THEN pg_temp.truncate_utf8_bytes(request_headers)
-        ELSE request_headers
-    END,
-    request_body = CASE
-        WHEN request_body IS NOT NULL AND octet_length(request_body) > 2097152
-        THEN pg_temp.truncate_utf8_bytes(request_body)
-        ELSE request_body
-    END,
-    response_headers = CASE
-        WHEN response_headers IS NOT NULL AND octet_length(response_headers) > 2097152
-        THEN pg_temp.truncate_utf8_bytes(response_headers)
-        ELSE response_headers
-    END,
-    response_body = CASE
-        WHEN response_body IS NOT NULL AND octet_length(response_body) > 2097152
-        THEN pg_temp.truncate_utf8_bytes(response_body)
-        ELSE response_body
-    END
-WHERE (request_headers IS NOT NULL AND octet_length(request_headers) > 2097152)
-   OR (request_body IS NOT NULL AND octet_length(request_body) > 2097152)
-   OR (response_headers IS NOT NULL AND octet_length(response_headers) > 2097152)
-   OR (response_body IS NOT NULL AND octet_length(response_body) > 2097152);
-
--- Normalize legacy run test counts, trim whitespace, and strip embedded userinfo credentials.
-UPDATE validation_run
-SET passed_tests = GREATEST(passed_tests, 0),
-    failed_tests = GREATEST(failed_tests, 0),
-    total_tests = GREATEST(total_tests, GREATEST(passed_tests, 0) + GREATEST(failed_tests, 0))
-WHERE total_tests < 0
-   OR passed_tests < 0
-   OR failed_tests < 0
-   OR passed_tests + failed_tests > total_tests;
-
-UPDATE validation_run
-SET target_url = regexp_replace(
-        regexp_replace(target_url, '^\s+|\s+$', '', 'g'),
-        '^(https?://)[^/?#]*@',
-        '\1',
-        'i'
+DO $$
+DECLARE
+    deleted_unpublished_runs BIGINT := 0;
+    deleted_orphan_exchanges BIGINT := 0;
+    updated_test_results BIGINT := 0;
+    updated_exchanges BIGINT := 0;
+    updated_runs BIGINT := 0;
+    updated_publications BIGINT := 0;
+BEGIN
+    -- Purge only unpublished validation_run rows whose target_url is unsalvageable (cascade-deleting their child rows).
+    DELETE FROM validation_run r
+    WHERE (
+        r.target_url ~ '^\s|\s$'
+        OR r.target_url !~* '^https?://[^/?#\s]\S*$'
+        OR r.target_url ~* '^https?://[^/?#]*@'
     )
-WHERE target_url ~ '^\s|\s$'
-   OR regexp_replace(target_url, '^\s+|\s+$', '', 'g') ~* '^https?://[^/?#]*@';
+      AND NOT EXISTS (
+          SELECT 1 FROM validation_run_publication p WHERE p.run_id = r.id
+      )
+      AND pg_temp.clean_http_url(r.target_url) IS NULL;
+    GET DIAGNOSTICS deleted_unpublished_runs = ROW_COUNT;
+    IF deleted_unpublished_runs > 0 THEN
+        RAISE NOTICE 'V3: deleted % unpublished validation_run row(s) with unsalvageable target_url', deleted_unpublished_runs;
+    END IF;
 
--- Preserve published validation_run rows in place so live leaderboard entries never fail V3 or get deleted.
-UPDATE validation_run r
-SET target_url = pg_temp.normalize_published_target_url(r.target_url)
-WHERE (r.target_url !~* '^https?://[^/?#\s]\S*$' OR r.target_url ~* '^https?://[^/?#]*@')
-  AND EXISTS (
-      SELECT 1 FROM validation_run_publication p WHERE p.run_id = r.id
-  );
+    -- Remove any orphaned or cross-run HTTP exchanges whose (test_result_id, run_id) pair does not match.
+    DELETE FROM validation_http_exchange e
+    WHERE NOT EXISTS (
+        SELECT 1
+        FROM validation_test_result tr
+        WHERE tr.id = e.test_result_id
+          AND tr.run_id = e.run_id
+    );
+    GET DIAGNOSTICS deleted_orphan_exchanges = ROW_COUNT;
+    IF deleted_orphan_exchanges > 0 THEN
+        RAISE NOTICE 'V3: deleted % orphaned or cross-run validation_http_exchange row(s)', deleted_orphan_exchanges;
+    END IF;
 
--- Purge only unpublished validation_run rows whose target_url remains invalid.
-DELETE FROM validation_run r
-WHERE (r.target_url !~* '^https?://[^/?#\s]\S*$' OR r.target_url ~* '^https?://[^/?#]*@')
-  AND NOT EXISTS (
-      SELECT 1 FROM validation_run_publication p WHERE p.run_id = r.id
-  );
+    -- Single UPDATE pass on validation_test_result: bound oversized > 2 MiB TEXT columns with '...[truncated]' marker.
+    UPDATE validation_test_result
+    SET error_message = CASE
+            WHEN error_message IS NOT NULL AND octet_length(error_message) > 2097152
+            THEN pg_temp.truncate_utf8_bytes(error_message)
+            ELSE error_message
+        END,
+        stack_trace = CASE
+            WHEN stack_trace IS NOT NULL AND octet_length(stack_trace) > 2097152
+            THEN pg_temp.truncate_utf8_bytes(stack_trace)
+            ELSE stack_trace
+        END
+    WHERE (error_message IS NOT NULL AND octet_length(error_message) > 2097152)
+       OR (stack_trace IS NOT NULL AND octet_length(stack_trace) > 2097152);
+    GET DIAGNOSTICS updated_test_results = ROW_COUNT;
+    IF updated_test_results > 0 THEN
+        RAISE NOTICE 'V3: truncated oversized TEXT value(s) on % validation_test_result row(s)', updated_test_results;
+    END IF;
 
--- Normalize live validation_run_publication rows in place without deleting any published leaderboard records.
-UPDATE validation_run_publication
-SET product_slug = pg_temp.normalize_product_slug(product_slug, product_name),
-    project_url = pg_temp.clean_http_url(project_url),
-    pr_url = CASE
-        WHEN pr_url IS NULL THEN NULL
-        WHEN regexp_replace(pr_url, '^\s+|\s+$', '', 'g') = 'PENDING_RESERVATION' THEN 'PENDING_RESERVATION'
-        ELSE pg_temp.clean_http_url(pr_url)
-    END,
-    report_url = COALESCE(
-        pg_temp.clean_http_url(report_url),
-        'https://scimsandbox.org/compliance/?run=' || run_id::text
-    ),
-    badge_url = COALESCE(
-        pg_temp.clean_http_url(badge_url),
-        'https://scimsandbox.org/compliance/badges/' || run_id::text || '.svg'
-    )
-WHERE product_slug !~ '^[a-z0-9]+(-[a-z0-9]+)*$'
-   OR product_slug ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
-   OR (project_url IS NOT NULL AND (project_url ~ '^\s|\s$' OR project_url !~* '^https?://[^/?#\s]\S*$' OR project_url ~* '^https?://[^/?#]*@'))
-   OR (pr_url IS NOT NULL AND pr_url <> 'PENDING_RESERVATION' AND (pr_url ~ '^\s|\s$' OR pr_url !~* '^https?://[^/?#\s]\S*$' OR pr_url ~* '^https?://[^/?#]*@'))
-   OR report_url ~ '^\s|\s$'
-   OR report_url !~* '^https?://[^/?#\s]\S*$'
-   OR report_url ~* '^https?://[^/?#]*@'
-   OR badge_url ~ '^\s|\s$'
-   OR badge_url !~* '^https?://[^/?#\s]\S*$'
-   OR badge_url ~* '^https?://[^/?#]*@';
+    -- Single UPDATE pass on validation_http_exchange: clamp negative sequence_number and bound oversized > 2 MiB TEXT columns.
+    UPDATE validation_http_exchange
+    SET sequence_number = GREATEST(sequence_number, 0),
+        request_headers = CASE
+            WHEN request_headers IS NOT NULL AND octet_length(request_headers) > 2097152
+            THEN pg_temp.truncate_utf8_bytes(request_headers)
+            ELSE request_headers
+        END,
+        request_body = CASE
+            WHEN request_body IS NOT NULL AND octet_length(request_body) > 2097152
+            THEN pg_temp.truncate_utf8_bytes(request_body)
+            ELSE request_body
+        END,
+        response_headers = CASE
+            WHEN response_headers IS NOT NULL AND octet_length(response_headers) > 2097152
+            THEN pg_temp.truncate_utf8_bytes(response_headers)
+            ELSE response_headers
+        END,
+        response_body = CASE
+            WHEN response_body IS NOT NULL AND octet_length(response_body) > 2097152
+            THEN pg_temp.truncate_utf8_bytes(response_body)
+            ELSE response_body
+        END
+    WHERE sequence_number < 0
+       OR (request_headers IS NOT NULL AND octet_length(request_headers) > 2097152)
+       OR (request_body IS NOT NULL AND octet_length(request_body) > 2097152)
+       OR (response_headers IS NOT NULL AND octet_length(response_headers) > 2097152)
+       OR (response_body IS NOT NULL AND octet_length(response_body) > 2097152);
+    GET DIAGNOSTICS updated_exchanges = ROW_COUNT;
+    IF updated_exchanges > 0 THEN
+        RAISE NOTICE 'V3: normalized sequence_number / oversized TEXT value(s) on % validation_http_exchange row(s)', updated_exchanges;
+    END IF;
+
+    -- Single UPDATE pass on validation_run: normalize test counts, lowercase HTTP(S) scheme, strip whitespace/userinfo,
+    -- and preserve all published runs in place so live leaderboard entries never fail V3 or get deleted.
+    UPDATE validation_run r
+    SET passed_tests = GREATEST(r.passed_tests, 0),
+        failed_tests = GREATEST(r.failed_tests, 0),
+        total_tests = GREATEST(r.total_tests, GREATEST(r.passed_tests, 0) + GREATEST(r.failed_tests, 0)),
+        target_url = CASE
+            WHEN EXISTS (SELECT 1 FROM validation_run_publication p WHERE p.run_id = r.id)
+            THEN pg_temp.normalize_published_target_url(r.target_url)
+            ELSE COALESCE(pg_temp.clean_http_url(r.target_url), regexp_replace(r.target_url, '^\s+|\s+$', '', 'g'))
+        END
+    WHERE r.total_tests < 0
+       OR r.passed_tests < 0
+       OR r.failed_tests < 0
+       OR r.passed_tests + r.failed_tests > r.total_tests
+       OR r.target_url ~ '^\s|\s$'
+       OR r.target_url !~ '^https?://[^/?#\s]\S*$'
+       OR r.target_url ~* '^https?://[^/?#]*@';
+    GET DIAGNOSTICS updated_runs = ROW_COUNT;
+    IF updated_runs > 0 THEN
+        RAISE NOTICE 'V3: normalized test counts / target_url on % validation_run row(s)', updated_runs;
+    END IF;
+
+    -- Single UPDATE pass on validation_run_publication: normalize live leaderboard rows in place without deleting any publications.
+    UPDATE validation_run_publication
+    SET product_slug = pg_temp.normalize_product_slug(product_slug, product_name),
+        project_url = pg_temp.clean_http_url(project_url),
+        pr_url = CASE
+            WHEN pr_url IS NULL THEN NULL
+            WHEN regexp_replace(pr_url, '^\s+|\s+$', '', 'g') = 'PENDING_RESERVATION' THEN 'PENDING_RESERVATION'
+            ELSE pg_temp.clean_http_url(pr_url)
+        END,
+        report_url = COALESCE(
+            pg_temp.clean_http_url(report_url),
+            'https://scimsandbox.org/compliance/?run=' || run_id::text
+        ),
+        badge_url = COALESCE(
+            pg_temp.clean_http_url(badge_url),
+            'https://scimsandbox.org/compliance/badges/' || run_id::text || '.svg'
+        )
+    WHERE product_slug !~ '^[a-z0-9]+(-[a-z0-9]+)*$'
+       OR product_slug ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+       OR (project_url IS NOT NULL AND (project_url ~ '^\s|\s$' OR project_url !~ '^https?://[^/?#\s]\S*$' OR project_url ~* '^https?://[^/?#]*@'))
+       OR (pr_url IS NOT NULL AND pr_url <> 'PENDING_RESERVATION' AND (pr_url ~ '^\s|\s$' OR pr_url !~ '^https?://[^/?#\s]\S*$' OR pr_url ~* '^https?://[^/?#]*@'))
+       OR report_url ~ '^\s|\s$'
+       OR report_url !~ '^https?://[^/?#\s]\S*$'
+       OR report_url ~* '^https?://[^/?#]*@'
+       OR badge_url ~ '^\s|\s$'
+       OR badge_url !~ '^https?://[^/?#\s]\S*$'
+       OR badge_url ~* '^https?://[^/?#]*@';
+    GET DIAGNOSTICS updated_publications = ROW_COUNT;
+    IF updated_publications > 0 THEN
+        RAISE NOTICE 'V3: normalized slug / URL value(s) on % validation_run_publication row(s)', updated_publications;
+    END IF;
+END $$;
 
 -- 3. Consolidated table constraint hardening (one ALTER TABLE per table to minimize scans under lock).
 

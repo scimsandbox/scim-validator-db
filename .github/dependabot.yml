@@ -4,8 +4,9 @@ registries:
   dhi-registry:
     type: docker-registry
     url: https://dhi.io
-    # Matches the edipal Docker Hub namespace used in docker-build-publish.yml and
-    # paired with the org-level DOCKERHUB_TOKEN Dependabot secret (no separate username secret exists).
+    # Matches the edipal Docker Hub namespace used in docker-build-publish.yml and paired with
+    # the org-level DOCKERHUB_TOKEN Dependabot secret; migrating to a dedicated service account /
+    # secrets.DOCKERHUB_USERNAME requires provisioning that Dependabot secret in GitHub Settings first.
     username: edipal
     # Requires DOCKERHUB_TOKEN to be configured in GitHub Dependabot Secrets.
     password: ${{ secrets.DOCKERHUB_TOKEN }}

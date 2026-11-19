@@ -112,8 +112,8 @@ BEGIN
     SELECT * INTO v_pub FROM validation_run_publication WHERE run_id = 'd0000000-0000-0000-0000-000000000003';
     IF v_pub.product_slug <> 'my-cool-scim'
        OR v_pub.project_url <> 'https://github.com/acme/scim'
-       OR v_pub.report_url <> 'https://scimsandbox.org/compliance/?run=d0000000-0000-0000-0000-000000000003'
-       OR v_pub.badge_url <> 'https://scimsandbox.org/compliance/badges/d0000000-0000-0000-0000-000000000003.svg'
+       OR v_pub.report_url <> 'https://legacy-invalid-publication.invalid/compliance/?run=d0000000-0000-0000-0000-000000000003'
+       OR v_pub.badge_url <> 'https://legacy-invalid-publication.invalid/compliance/badges/d0000000-0000-0000-0000-000000000003.svg'
        OR v_pub.pr_url <> 'https://github.com/scimsandbox/scim-website/pull/42' THEN
         RAISE EXCEPTION 'Pub 3 normalization mismatch: %', v_pub;
     END IF;
@@ -121,8 +121,8 @@ BEGIN
     SELECT * INTO v_pub FROM validation_run_publication WHERE run_id = 'd0000000-0000-0000-0000-000000000004';
     IF v_pub.product_slug <> 'product-33333333-3333-3333-3333-333333333333'
        OR v_pub.project_url IS NOT NULL
-       OR v_pub.report_url <> 'https://scimsandbox.org/compliance/?run=4'
-       OR v_pub.badge_url <> 'http://scimsandbox.org/compliance/badges/4.svg'
+       OR v_pub.report_url <> 'https://scimsandbox.net/compliance/?run=4'
+       OR v_pub.badge_url <> 'http://scimsandbox.net/compliance/badges/4.svg'
        OR v_pub.pr_url <> 'PENDING_RESERVATION' THEN
         RAISE EXCEPTION 'Pub 4 normalization mismatch: %', v_pub;
     END IF;
@@ -130,8 +130,8 @@ BEGIN
     SELECT * INTO v_pub FROM validation_run_publication WHERE run_id = 'd0000000-0000-0000-0000-000000000005';
     IF v_pub.product_slug <> 'acme-enterprise-scim'
        OR v_pub.project_url IS NOT NULL
-       OR v_pub.report_url <> 'https://scimsandbox.org/compliance/?run=d0000000-0000-0000-0000-000000000005'
-       OR v_pub.badge_url <> 'https://scimsandbox.org/compliance/badges/d0000000-0000-0000-0000-000000000005.svg'
+       OR v_pub.report_url <> 'https://legacy-invalid-publication.invalid/compliance/?run=d0000000-0000-0000-0000-000000000005'
+       OR v_pub.badge_url <> 'https://legacy-invalid-publication.invalid/compliance/badges/d0000000-0000-0000-0000-000000000005.svg'
        OR v_pub.pr_url IS NOT NULL THEN
         RAISE EXCEPTION 'Pub 5 normalization mismatch: %', v_pub;
     END IF;
@@ -139,8 +139,8 @@ BEGIN
     SELECT * INTO v_pub FROM validation_run_publication WHERE run_id = 'd0000000-0000-0000-0000-000000000006';
     IF v_pub.product_slug <> 'legacy-product'
        OR v_pub.project_url <> 'https://github.com/acme/repo'
-       OR v_pub.report_url <> 'https://scimsandbox.org/r/6'
-       OR v_pub.badge_url <> 'https://scimsandbox.org/b/6.svg'
+       OR v_pub.report_url <> 'https://scimsandbox.net/r/6'
+       OR v_pub.badge_url <> 'https://scimsandbox.net/b/6.svg'
        OR v_pub.pr_url <> 'https://github.com/scimsandbox/scim-website/pull/6' THEN
         RAISE EXCEPTION 'Pub 6 normalization mismatch: %', v_pub;
     END IF;
@@ -148,8 +148,8 @@ BEGIN
     SELECT * INTO v_pub FROM validation_run_publication WHERE run_id = 'd0000000-0000-0000-0000-000000000009';
     IF v_pub.product_slug <> 'keycloak-scim-plugin'
        OR v_pub.project_url <> 'https://GitHub.com/Keycloak/SCIM_Plugin'
-       OR v_pub.report_url <> 'https://scimsandbox.org/Compliance/?run=9'
-       OR v_pub.badge_url <> 'http://scimsandbox.org/Compliance/Badges/9.svg'
+       OR v_pub.report_url <> 'https://scimsandbox.net/Compliance/?run=9'
+       OR v_pub.badge_url <> 'http://scimsandbox.net/Compliance/Badges/9.svg'
        OR v_pub.pr_url <> 'PENDING_RESERVATION' THEN
         RAISE EXCEPTION 'Pub 9 underscore slug / mixed-case URL normalization mismatch: %', v_pub;
     END IF;

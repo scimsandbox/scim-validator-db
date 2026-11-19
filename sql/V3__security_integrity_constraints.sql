@@ -283,11 +283,11 @@ BEGIN
         END,
         report_url = COALESCE(
             pg_temp.clean_http_url(report_url),
-            'https://scimsandbox.org/compliance/?run=' || run_id::text
+            'https://legacy-invalid-publication.invalid/compliance/?run=' || run_id::text
         ),
         badge_url = COALESCE(
             pg_temp.clean_http_url(badge_url),
-            'https://scimsandbox.org/compliance/badges/' || run_id::text || '.svg'
+            'https://legacy-invalid-publication.invalid/compliance/badges/' || run_id::text || '.svg'
         )
     WHERE product_slug !~ '^[a-z0-9]+(-[a-z0-9]+)*$'
        OR product_slug ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'

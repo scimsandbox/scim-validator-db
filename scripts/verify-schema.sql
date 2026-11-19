@@ -217,8 +217,8 @@ VALUES (
     100,
     8,
     10,
-    'HTTPS://scimsandbox.org/reports/11111111',
-    'Http://scimsandbox.org/badges/11111111.svg',
+    'HTTPS://scimsandbox.net/reports/11111111',
+    'Http://scimsandbox.net/badges/11111111.svg',
     'HTTPS://github.com/scimsandbox/leaderboard/pull/1',
     NOW() - INTERVAL '4 minutes'
 );
@@ -280,8 +280,8 @@ VALUES (
     0,
     0,
     10,
-    'https://scimsandbox.org/reports/22222222',
-    'https://scimsandbox.org/badges/22222222.svg',
+    'https://scimsandbox.net/reports/22222222',
+    'https://scimsandbox.net/badges/22222222.svg',
     'PENDING_RESERVATION',
     NOW() - INTERVAL '2 minutes'
 );
@@ -312,7 +312,7 @@ BEGIN
             VALUES (
                 '33333333-3333-3333-3333-333333333333', 'alice@example.com', 'Acme SCIM', 'acme-scim', '1.0.0',
                 'Apache-2.0', v_case.score, v_case.supported, v_case.total,
-                'https://scimsandbox.org/reports/3', 'https://scimsandbox.org/badges/3.svg', NOW()
+                'https://scimsandbox.net/reports/3', 'https://scimsandbox.net/badges/3.svg', NOW()
             );
             RAISE EXCEPTION 'Expected check_violation for %', v_case.label;
         EXCEPTION WHEN check_violation THEN
@@ -332,7 +332,7 @@ BEGIN
     VALUES (
         '33333333-3333-3333-3333-333333333333', 'bob@example.com', 'Acme SCIM', 'acme-scim', '1.0.0',
         'Apache-2.0', 95, 8, 10,
-        'https://scimsandbox.org/reports/3', 'https://scimsandbox.org/badges/3.svg', NOW()
+        'https://scimsandbox.net/reports/3', 'https://scimsandbox.net/badges/3.svg', NOW()
     );
     RAISE EXCEPTION 'Expected foreign_key_violation for mismatched created_by_email';
 EXCEPTION WHEN foreign_key_violation THEN
@@ -411,20 +411,20 @@ BEGIN
         SELECT *
         FROM (
             VALUES
-                ('path traversal slug', '../traversal', 'https://example.com', 'https://scimsandbox.org/r/3', 'https://scimsandbox.org/b/3.svg', 'https://github.com/pr/3'),
-                ('uppercase slug', 'Acme-SCIM', 'https://example.com', 'https://scimsandbox.org/r/3', 'https://scimsandbox.org/b/3.svg', 'https://github.com/pr/3'),
-                ('underscore slug', 'keycloak_scim', 'https://example.com', 'https://scimsandbox.org/r/3', 'https://scimsandbox.org/b/3.svg', 'https://github.com/pr/3'),
-                ('double hyphen slug', 'acme--scim', 'https://example.com', 'https://scimsandbox.org/r/3', 'https://scimsandbox.org/b/3.svg', 'https://github.com/pr/3'),
-                ('UUID slug', '11111111-1111-1111-1111-111111111111', 'https://example.com', 'https://scimsandbox.org/r/3', 'https://scimsandbox.org/b/3.svg', 'https://github.com/pr/3'),
-                ('javascript project_url', 'acme-scim', 'javascript:alert(1)', 'https://scimsandbox.org/r/3', 'https://scimsandbox.org/b/3.svg', 'https://github.com/pr/3'),
-                ('userinfo project_url', 'acme-scim', 'HTTPS://user:pass@example.com', 'https://scimsandbox.org/r/3', 'https://scimsandbox.org/b/3.svg', 'https://github.com/pr/3'),
-                ('empty host project_url', 'acme-scim', 'https:///repo', 'https://scimsandbox.org/r/3', 'https://scimsandbox.org/b/3.svg', 'https://github.com/pr/3'),
-                ('data report_url', 'acme-scim', 'https://example.com', 'data:text/html,hi', 'https://scimsandbox.org/b/3.svg', 'https://github.com/pr/3'),
-                ('userinfo report_url', 'acme-scim', 'https://example.com', 'HTTPS://user:pass@scimsandbox.org/r/3', 'https://scimsandbox.org/b/3.svg', 'https://github.com/pr/3'),
-                ('ftp badge_url', 'acme-scim', 'https://example.com', 'https://scimsandbox.org/r/3', 'ftp://scimsandbox.org/b/3.svg', 'https://github.com/pr/3'),
-                ('userinfo badge_url', 'acme-scim', 'https://example.com', 'https://scimsandbox.org/r/3', 'https://user:pass@scimsandbox.org/b/3.svg', 'https://github.com/pr/3'),
-                ('invalid pr_url', 'acme-scim', 'https://example.com', 'https://scimsandbox.org/r/3', 'https://scimsandbox.org/b/3.svg', 'javascript:alert(1)'),
-                ('userinfo pr_url', 'acme-scim', 'https://example.com', 'https://scimsandbox.org/r/3', 'https://scimsandbox.org/b/3.svg', 'HTTPS://token@github.com/pr/3')
+                ('path traversal slug', '../traversal', 'https://example.com', 'https://scimsandbox.net/r/3', 'https://scimsandbox.net/b/3.svg', 'https://github.com/pr/3'),
+                ('uppercase slug', 'Acme-SCIM', 'https://example.com', 'https://scimsandbox.net/r/3', 'https://scimsandbox.net/b/3.svg', 'https://github.com/pr/3'),
+                ('underscore slug', 'keycloak_scim', 'https://example.com', 'https://scimsandbox.net/r/3', 'https://scimsandbox.net/b/3.svg', 'https://github.com/pr/3'),
+                ('double hyphen slug', 'acme--scim', 'https://example.com', 'https://scimsandbox.net/r/3', 'https://scimsandbox.net/b/3.svg', 'https://github.com/pr/3'),
+                ('UUID slug', '11111111-1111-1111-1111-111111111111', 'https://example.com', 'https://scimsandbox.net/r/3', 'https://scimsandbox.net/b/3.svg', 'https://github.com/pr/3'),
+                ('javascript project_url', 'acme-scim', 'javascript:alert(1)', 'https://scimsandbox.net/r/3', 'https://scimsandbox.net/b/3.svg', 'https://github.com/pr/3'),
+                ('userinfo project_url', 'acme-scim', 'HTTPS://user:pass@example.com', 'https://scimsandbox.net/r/3', 'https://scimsandbox.net/b/3.svg', 'https://github.com/pr/3'),
+                ('empty host project_url', 'acme-scim', 'https:///repo', 'https://scimsandbox.net/r/3', 'https://scimsandbox.net/b/3.svg', 'https://github.com/pr/3'),
+                ('data report_url', 'acme-scim', 'https://example.com', 'data:text/html,hi', 'https://scimsandbox.net/b/3.svg', 'https://github.com/pr/3'),
+                ('userinfo report_url', 'acme-scim', 'https://example.com', 'HTTPS://user:pass@scimsandbox.net/r/3', 'https://scimsandbox.net/b/3.svg', 'https://github.com/pr/3'),
+                ('ftp badge_url', 'acme-scim', 'https://example.com', 'https://scimsandbox.net/r/3', 'ftp://scimsandbox.net/b/3.svg', 'https://github.com/pr/3'),
+                ('userinfo badge_url', 'acme-scim', 'https://example.com', 'https://scimsandbox.net/r/3', 'https://user:pass@scimsandbox.net/b/3.svg', 'https://github.com/pr/3'),
+                ('invalid pr_url', 'acme-scim', 'https://example.com', 'https://scimsandbox.net/r/3', 'https://scimsandbox.net/b/3.svg', 'javascript:alert(1)'),
+                ('userinfo pr_url', 'acme-scim', 'https://example.com', 'https://scimsandbox.net/r/3', 'https://scimsandbox.net/b/3.svg', 'HTTPS://token@github.com/pr/3')
         ) AS t(label, slug, proj_url, rep_url, bdg_url, pull_url)
     LOOP
         BEGIN

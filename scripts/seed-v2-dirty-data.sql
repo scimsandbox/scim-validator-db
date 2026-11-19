@@ -198,8 +198,8 @@ VALUES
         98,
         9,
         10,
-        'HTTPS://scimsandbox.org/compliance/?run=4',
-        'Http://scimsandbox.org/compliance/badges/4.svg',
+        'HTTPS://scimsandbox.net/compliance/?run=4',
+        'Http://scimsandbox.net/compliance/badges/4.svg',
         'PENDING_RESERVATION',
         NOW() - INTERVAL '49 minutes'
     ),
@@ -236,8 +236,8 @@ VALUES
         100,
         10,
         10,
-        'https://scimsandbox.org/r/6',
-        'https://scimsandbox.org/b/6.svg',
+        'https://scimsandbox.net/r/6',
+        'https://scimsandbox.net/b/6.svg',
         'HTTPS://github.com/scimsandbox/scim-website/pull/6',
         NOW() - INTERVAL '29 minutes'
     ),
@@ -255,8 +255,8 @@ VALUES
         99,
         10,
         10,
-        'HTTPS://scimsandbox.org/Compliance/?run=9',
-        'Http://scimsandbox.org/Compliance/Badges/9.svg',
+        'HTTPS://scimsandbox.net/Compliance/?run=9',
+        'Http://scimsandbox.net/Compliance/Badges/9.svg',
         '  PENDING_RESERVATION  ',
         NOW() - INTERVAL '4 minutes'
     );

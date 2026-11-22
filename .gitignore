@@ -14,10 +14,21 @@ Desktop.ini
 *.swp
 *~
 
-# Local scratch files
+# Local scratch & log files
 *.tmp
 temp/
 /tmp/
+*.log
+logs/
+.scannerwork/
+
+# Local SOPS / age secret artifacts
+*.agekey
+*.decrypted.yaml
+*.decrypted.yml
+*.dec.yaml
+*.dec.yml
+.config/sops
 
 # Release & security scan outputs
 dist/

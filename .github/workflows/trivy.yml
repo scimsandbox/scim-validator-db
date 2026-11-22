@@ -20,8 +20,10 @@ jobs:
     uses: scimsandbox/.github/.github/workflows/reusable-trivy-image.yml@645f5fafbdfccdaf904de1b5f3dc832b2c12cfd9 # v1.1.0
     with:
       image-name: scim-validator-db:scan
+      trivyignores: ".trivyignore"
 
   trivy-config:
     uses: scimsandbox/.github/.github/workflows/reusable-trivy-config.yml@645f5fafbdfccdaf904de1b5f3dc832b2c12cfd9 # v1.1.0
     with:
       scan-ref: "."
+      trivyignores: ".trivyignore"

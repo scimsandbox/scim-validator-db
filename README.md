@@ -7,6 +7,7 @@ This repository is the standalone database migration bundle for the SCIM Sandbox
 - `sql/` contains the Flyway migration scripts.
 - `sql/V1__init_validator_schema.sql` creates the initial validator schema.
 - `sql/V2__add_validation_run_publication.sql` adds publication tracking for compliance runs submitted to the public leaderboard.
+- `sql/V3__security_integrity_constraints.sql` adds composite foreign key enforcement, URL/slug format constraints, and byte-length bounds on trace/error `TEXT` columns.
 - `Dockerfile` packages those migrations into a Flyway image that runs `flyway migrate` against a target PostgreSQL database.
 - `CONTRIBUTING.md` and `SECURITY.md` describe the workflow and reporting process.
 
